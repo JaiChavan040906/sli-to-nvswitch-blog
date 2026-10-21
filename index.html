@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From SLI to NVSwitch — The Interconnect Graveyard</title>
+<meta name="description" content="The legacy technologies the industry had to kill — SLI, PCIe-as-bus, kernel TCP/IP and best-effort Ethernet — to build AI-scale networking.">
+<meta name="author" content="Piyush Gupta, Jeet Mane, Jai Chavan, Atharva Sheramkar">
+<meta property="og:title" content="From SLI to NVSwitch: The Technologies We Had to Kill to Build AI-Scale Networking">
+<meta property="og:description" content="GPUs got 1,000× faster. Networks got 10×. Here's the graveyard of technologies we buried to close the gap.">
+<meta property="og:type" content="article">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>
+  try { var t = localStorage.getItem('theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+</head>
+<body>
+
+<div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+
+<header class="topbar">
+  <a class="brand" href="#top" aria-label="The Interconnect Graveyard — home">
+    <svg class="brand-chip" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="7" y="7" width="18" height="18" rx="2"/>
+      <path d="M11 3v4M16 3v4M21 3v4M11 25v4M16 25v4M21 25v4M3 11h4M3 16h4M3 21h4M25 11h4M25 16h4M25 21h4"/>
+      <path class="brand-x" d="M12 12l8 8M20 12l-8 8"/>
+    </svg>
+    <span class="brand-name">Interconnect <em>Graveyard</em></span>
+  </a>
+  <nav class="topnav" aria-label="Sections">
+    <a href="#graveyard">Graveyard</a>
+    <a href="#part-1">Article</a>
+    <a href="#authors">Authors</a>
+  </nav>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+  </button>
+</header>
+
+<nav class="rail" aria-label="Article progress">
+  <a href="#intro" data-rail="intro"><i></i><span>00 Intro</span></a>
+  <a href="#part-1" data-rail="part-1"><i></i><span>01 SLI</span></a>
+  <a href="#part-2" data-rail="part-2"><i></i><span>02 PCIe</span></a>
+  <a href="#part-3" data-rail="part-3"><i></i><span>03 TCP/IP</span></a>
+  <a href="#part-4" data-rail="part-4"><i></i><span>04 Lossless</span></a>
+  <a href="#next" data-rail="next"><i></i><span>05 What's next</span></a>
+</nav>
+
+<main id="top">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="kicker"><span class="kicker-dot"></span>Issue 01 &nbsp;/&nbsp; AI Infrastructure &nbsp;/&nbsp; Systems Architecture</p>
+      <h1 class="title">From <s>SLI</s> to <em>NVSwitch</em><span class="title-sub">The Technologies We Had to Kill to Build AI&#8209;Scale Networking</span></h1>
+      <p class="dek">Modern AI isn&rsquo;t just a software revolution. It&rsquo;s a hardware miracle built on the bones of technologies we had to aggressively kill.</p>
+
+      <div class="byline">
+        <div class="avatars" aria-hidden="true">
+          <span>PG</span><span>JM</span><span>JC</span><span>AS</span>
+        </div>
+        <div class="byline-text">
+          <p class="byline-names">By Piyush Gupta, Jeet Mane, Jai Chavan &amp; Atharva Sheramkar</p>
+          <p class="byline-meta">October 2026 &middot; 7 min read &middot; 4 legacy technologies, buried</p>
+        </div>
+      </div>
+    </div>
+
+    <figure class="gap reveal" aria-labelledby="gap-cap">
+      <div class="gap-head">
+        <span class="mono-label">Fig. 0 &mdash; The scaling gap</span>
+        <span class="mono-label dim">relative speed-up</span>
+      </div>
+      <div class="gap-row">
+        <span class="gap-name">GPU compute</span>
+        <div class="gap-track"><div class="gap-bar compute" style="--w:100%"></div></div>
+        <span class="gap-val">1,000&times;</span>
+      </div>
+      <div class="gap-row">
+        <span class="gap-name">Network</span>
+        <div class="gap-track"><div class="gap-bar net" style="--w:1%"></div></div>
+        <span class="gap-val">10&times;</span>
+      </div>
+      <figcaption id="gap-cap">The gap is the whole story: AI scaling stopped being a compute problem and became a <strong>data movement</strong> problem.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ INTRO ============ -->
+  <article class="flow" id="intro">
+    <p class="lede">When you spend your late nights studying computer architecture and systems design, you quickly realize a humbling truth: modern AI isn&rsquo;t just a software revolution. It&rsquo;s a hardware miracle built on the bones of technologies we had to aggressively kill.</p>
+    <p>For years, we treated computing as a game of raw compute power. But as generative models exploded, we hit a wall. GPUs became 1,000&times; faster, but networks only managed a 10&times; speedup. AI scaling stopped being a pure compute problem and turned into a massive data movement problem. To build clusters capable of training hundreds of billions of parameters, the tech industry had to throw out decades of legacy assumptions.</p>
+
+    <blockquote class="pull wide">
+      <p>AI scaling stopped being a pure compute problem and turned into a massive <em>data movement</em> problem.</p>
+    </blockquote>
+
+    <p>Here is a look back at the graveyard of legacy technologies and the modern marvels that replaced them.</p>
+  </article>
+
+  <!-- ============ GRAVEYARD ============ -->
+  <section class="graveyard" id="graveyard" aria-labelledby="graveyard-title">
+    <div class="graveyard-head">
+      <span class="mono-label">The plot</span>
+      <h2 id="graveyard-title">Here lie four assumptions</h2>
+      <p>Each one worked for decades. Each one had to go.</p>
+    </div>
+    <ol class="stones">
+      <li class="stone reveal">
+        <a href="#part-1">
+          <span class="stone-rip">R.I.P.</span>
+          <span class="stone-name">SLI &amp; CrossFire</span>
+          <span class="stone-epitaph">&ldquo;Two cards, one memory.&rdquo;</span>
+          <span class="stone-cause"><b>Cause of death</b>VRAM duplication</span>
+          <span class="stone-heir"><b>Succeeded by</b>NVLink</span>
+        </a>
+      </li>
+      <li class="stone reveal">
+        <a href="#part-2">
+          <span class="stone-rip">R.I.P.</span>
+          <span class="stone-name">PCIe as the GPU bus</span>
+          <span class="stone-epitaph">&ldquo;Every road led through the CPU.&rdquo;</span>
+          <span class="stone-cause"><b>Cause of death</b>Root complex bottleneck</span>
+          <span class="stone-heir"><b>Succeeded by</b>NVSwitch</span>
+        </a>
+      </li>
+      <li class="stone reveal">
+        <a href="#part-3">
+          <span class="stone-rip">R.I.P.</span>
+          <span class="stone-name">Kernel TCP/IP</span>
+          <span class="stone-epitaph">&ldquo;Copied every byte, four times.&rdquo;</span>
+          <span class="stone-cause"><b>Cause of death</b>Interrupts &amp; memory copies</span>
+          <span class="stone-heir"><b>Succeeded by</b>GPUDirect RDMA</span>
+        </a>
+      </li>
+      <li class="stone reveal">
+        <a href="#part-4">
+          <span class="stone-rip">R.I.P.</span>
+          <span class="stone-name">Best-effort Ethernet</span>
+          <span class="stone-epitaph">&ldquo;Drop it. Someone will resend.&rdquo;</span>
+          <span class="stone-cause"><b>Cause of death</b>The straggler problem</span>
+          <span class="stone-heir"><b>Succeeded by</b>InfiniBand &amp; RoCEv2</span>
+        </a>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ============ PART 1 ============ -->
+  <section class="part flow" id="part-1">
+    <header class="part-head wide">
+      <span class="part-no" aria-hidden="true">01</span>
+      <div>
+        <p class="mono-label">Part 01 / 04 &middot; Multi-GPU</p>
+        <h2>Ditching SLI &amp; the Myth of Master&#8209;Slave Multi&#8209;GPU</h2>
+      </div>
+    </header>
+
+    <div class="swap wide">
+      <div class="swap-dead"><span class="tag">Deprecated</span><strong>SLI &amp; CrossFire</strong></div>
+      <span class="swap-arrow" aria-hidden="true"></span>
+      <div class="swap-live"><span class="tag">Successor</span><strong>NVLink &amp; NVSwitch</strong></div>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label">What we left behind</p>
+      <h3>SLI and CrossFire</h3>
+      <p>Back in the golden age of PC gaming, NVIDIA&rsquo;s SLI (Scalable Link Interface) and AMD&rsquo;s CrossFire were the holy grail for enthusiast builds. They used Split-Frame or Alternate-Frame Rendering to tie two graphics cards together. But there was a major catch: SLI forced one GPU to act as a &ldquo;master&rdquo; gathering rendered frames from &ldquo;slave&rdquo; GPUs, and it completely duplicated VRAM. If you ran two 8&nbsp;GB cards in SLI, you still only had 8&nbsp;GB of usable memory.</p>
+    </div>
+
+    <figure class="diagram wide reveal">
+      <svg viewBox="0 0 680 270" role="img" aria-labelledby="d1-t d1-d">
+        <title id="d1-t">Mirrored VRAM versus pooled VRAM</title>
+        <desc id="d1-d">With SLI both GPUs hold the same copy of data, so two 8 GB cards give 8 GB usable. With NVLink each GPU holds different layers, giving 16 GB pooled.</desc>
+        <!-- left: SLI -->
+        <text class="d-head dead" x="0" y="16">SLI / CROSSFIRE &mdash; MIRRORED</text>
+        <g transform="translate(0,36)">
+          <rect class="d-box" x="4" y="0" width="134" height="150" rx="6"/>
+          <text class="d-small" x="18" y="24">GPU 0</text><text class="d-tiny dead" x="18" y="40">MASTER</text>
+          <rect class="d-mem dead-fill" x="18" y="58" width="106" height="62" rx="3"/>
+          <text class="d-small c" x="71" y="86">model copy</text><text class="d-tiny c" x="71" y="104">8 GB</text>
+
+          <rect class="d-box" x="196" y="0" width="134" height="150" rx="6"/>
+          <text class="d-small" x="210" y="24">GPU 1</text><text class="d-tiny dead" x="210" y="40">SLAVE</text>
+          <rect class="d-mem dead-fill" x="210" y="58" width="106" height="62" rx="3"/>
+          <text class="d-small c" x="263" y="86">model copy</text><text class="d-tiny c" x="263" y="104">8 GB</text>
+
+          <path class="d-link dead flow-dash" d="M138 75 H196"/>
+          <text class="d-tiny c dead" x="167" y="66">frames</text>
+        </g>
+        <text class="d-eq" x="167" y="226" text-anchor="middle">8 GB + 8 GB = <tspan class="dead strong">8 GB</tspan></text>
+        <text class="d-tiny c" x="167" y="248">duplicated, not pooled</text>
+
+        <line class="d-sep" x1="350" y1="0" x2="350" y2="260"/>
+
+        <!-- right: NVLink -->
+        <text class="d-head live" x="370" y="16">NVLINK &mdash; POOLED</text>
+        <g transform="translate(346,36)">
+          <rect class="d-box" x="24" y="0" width="134" height="150" rx="6"/>
+          <text class="d-small" x="38" y="24">GPU 0</text><text class="d-tiny live" x="38" y="40">PEER</text>
+          <rect class="d-mem live-fill" x="38" y="58" width="106" height="62" rx="3"/>
+          <text class="d-small c" x="91" y="86">layers 0&ndash;39</text><text class="d-tiny c" x="91" y="104">8 GB</text>
+
+          <rect class="d-box" x="196" y="0" width="134" height="150" rx="6"/>
+          <text class="d-small" x="210" y="24">GPU 1</text><text class="d-tiny live" x="210" y="40">PEER</text>
+          <rect class="d-mem live-fill alt" x="210" y="58" width="106" height="62" rx="3"/>
+          <text class="d-small c" x="263" y="86">layers 40&ndash;79</text><text class="d-tiny c" x="263" y="104">8 GB</text>
+
+          <path class="d-link live thick" d="M158 75 H196"/>
+          <path class="d-link live thick" d="M158 95 H196"/>
+          <text class="d-tiny c live" x="177" y="66">ld/st</text>
+        </g>
+        <text class="d-eq" x="523" y="226" text-anchor="middle">8 GB + 8 GB = <tspan class="live strong">16 GB</tspan></text>
+        <text class="d-tiny c" x="523" y="248">one logical memory pool</text>
+      </svg>
+      <figcaption><span class="mono-label">Fig. 1</span> Rendering frames needs a copy of the scene on every card. Training a model needs every byte of memory to hold <em>different</em> weights.</figcaption>
+    </figure>
+
+    <div class="beat">
+      <p class="beat-label">Why it failed for AI</p>
+      <h3>Memory has to pool, not mirror</h3>
+      <p>Large Language Models cannot fit into a single GPU&rsquo;s memory. Master-slave rendering and VRAM duplication are utterly useless when thousands of matrix operations need to pool memory in parallel, not duplicate it.</p>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label live">The modern replacement</p>
+      <h3>NVLink and NVSwitch</h3>
+      <p>Modern AI relies on NVLink to abandon display-oriented logic entirely. Instead of passing pixels, it enables direct memory load and store operations between GPU VRAM spaces at multi-terabyte-per-second speeds, creating a unified memory pool where multiple GPUs act as a single logical processor.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 2 ============ -->
+  <section class="part flow" id="part-2">
+    <header class="part-head wide">
+      <span class="part-no" aria-hidden="true">02</span>
+      <div>
+        <p class="mono-label">Part 02 / 04 &middot; The Bus</p>
+        <h2>The Death of PCIe as the Primary Bus</h2>
+      </div>
+    </header>
+
+    <div class="swap wide">
+      <div class="swap-dead"><span class="tag">Deprecated</span><strong>The CPU root complex</strong></div>
+      <span class="swap-arrow" aria-hidden="true"></span>
+      <div class="swap-live"><span class="tag">Successor</span><strong>Custom silicon fabrics</strong></div>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label">What we left behind</p>
+      <h3>Relying on the CPU root complex</h3>
+      <p>Traditionally, if GPU&nbsp;1 wanted to talk to GPU&nbsp;2, the data had to travel up the PCIe lane to the CPU and system RAM, traverse the PCIe root complex, and travel back down to GPU&nbsp;2.</p>
+    </div>
+
+    <figure class="diagram wide reveal">
+      <svg viewBox="0 0 680 280" role="img" aria-labelledby="d2-t d2-d">
+        <title id="d2-t">CPU detour versus switched fabric</title>
+        <desc id="d2-d">On the left, GPU traffic goes up to the CPU root complex and back down. On the right, four GPUs connect directly through an NVSwitch crossbar.</desc>
+        <text class="d-head dead" x="0" y="16">PCIe &mdash; THE DETOUR</text>
+        <rect class="d-box" x="100" y="40" width="140" height="56" rx="6"/>
+        <text class="d-small c" x="170" y="64">CPU</text>
+        <text class="d-tiny c" x="170" y="82">root complex + RAM</text>
+        <rect class="d-box" x="20" y="200" width="110" height="52" rx="6"/>
+        <text class="d-small c" x="75" y="231">GPU 1</text>
+        <rect class="d-box" x="210" y="200" width="110" height="52" rx="6"/>
+        <text class="d-small c" x="265" y="231">GPU 2</text>
+        <path class="d-link dead flow-dash" d="M75 200 V150 Q75 120 105 110 L130 96"/>
+        <path class="d-link dead flow-dash" d="M210 96 L235 110 Q265 120 265 150 V200" marker-end="url(#arrow-dead)"/>
+        <text class="d-tiny dead" x="20" y="150">up</text>
+        <text class="d-tiny dead" x="290" y="150">down</text>
+
+        <line class="d-sep" x1="350" y1="0" x2="350" y2="270"/>
+
+        <text class="d-head live" x="370" y="16">NVSWITCH &mdash; THE CROSSBAR</text>
+        <g class="xbar">
+          <path class="d-link live thick" d="M440 76 L500 126"/>
+          <path class="d-link live thick" d="M620 76 L560 126"/>
+          <path class="d-link live thick" d="M440 226 L500 176"/>
+          <path class="d-link live thick" d="M620 226 L560 176"/>
+          <rect class="d-box live-stroke" x="480" y="122" width="100" height="58" rx="6"/>
+          <text class="d-small c" x="530" y="148">NVSwitch</text>
+          <text class="d-tiny c live" x="530" y="166">crossbar</text>
+          <rect class="d-box" x="380" y="44" width="96" height="44" rx="6"/><text class="d-small c" x="428" y="71">GPU 0</text>
+          <rect class="d-box" x="584" y="44" width="96" height="44" rx="6"/><text class="d-small c" x="632" y="71">GPU 1</text>
+          <rect class="d-box" x="380" y="214" width="96" height="44" rx="6"/><text class="d-small c" x="428" y="241">GPU 2</text>
+          <rect class="d-box" x="584" y="214" width="96" height="44" rx="6"/><text class="d-small c" x="632" y="241">GPU 3</text>
+        </g>
+        <defs>
+          <marker id="arrow-dead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="d-arrow" d="M0 0 L10 5 L0 10z"/>
+          </marker>
+        </defs>
+      </svg>
+      <figcaption><span class="mono-label">Fig. 2</span> Every hop through the CPU is a hop the data never needed to take.</figcaption>
+    </figure>
+
+    <div class="beat">
+      <p class="beat-label">Why it failed for AI</p>
+      <h3>An 800B-parameter traffic jam</h3>
+      <p>A PCIe Gen5 x16 slot tops out at roughly 64&nbsp;GB/s bi-directional throughput. When you are distributing an 800B parameter model across multiple cards, routing everything through the CPU creates a catastrophic bottleneck.</p>
+    </div>
+
+    <figure class="bw wide reveal" aria-labelledby="bw-cap">
+      <div class="gap-head">
+        <span class="mono-label">Fig. 3 &mdash; GPU-to-GPU bandwidth, to scale</span>
+        <span class="mono-label dim">GB/s</span>
+      </div>
+      <div class="bw-row">
+        <span class="bw-name">PCIe Gen5 x16</span>
+        <div class="gap-track"><div class="gap-bar dead-bar" style="--w:3.6%"></div></div>
+        <span class="bw-val">~64</span>
+      </div>
+      <div class="bw-row">
+        <span class="bw-name">NVLink &middot; per GPU <small>GB200 NVL72</small></span>
+        <div class="gap-track"><div class="gap-bar live-bar" style="--w:100%"></div></div>
+        <span class="bw-val">1,800</span>
+      </div>
+      <figcaption id="bw-cap">That tiny sliver on top is what every GPU used to share with the rest of the machine.</figcaption>
+    </figure>
+
+    <div class="beat">
+      <p class="beat-label live">The modern replacement</p>
+      <h3>Custom silicon fabrics (NVSwitch)</h3>
+      <p>Modern AI servers bypass PCIe for GPU-to-GPU traffic completely. Inside a DGX node or an NVLink domain (like the GB200 NVL72), GPUs are glued together via custom crossbar switch chips, delivering up to 1.8&nbsp;TB/s of bi-directional bandwidth per GPU.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 3 ============ -->
+  <section class="part flow" id="part-3">
+    <header class="part-head wide">
+      <span class="part-no" aria-hidden="true">03</span>
+      <div>
+        <p class="mono-label">Part 03 / 04 &middot; The Stack</p>
+        <h2>Throwing Out the TCP/IP Stack</h2>
+      </div>
+    </header>
+
+    <div class="swap wide">
+      <div class="swap-dead"><span class="tag">Deprecated</span><strong>Kernel packet processing</strong></div>
+      <span class="swap-arrow" aria-hidden="true"></span>
+      <div class="swap-live"><span class="tag">Successor</span><strong>GPUDirect RDMA</strong></div>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label">What we left behind</p>
+      <h3>Kernel-level packet processing</h3>
+      <p>For decades, networking meant the standard OS TCP/IP stack. Every incoming packet triggered CPU interrupts and multiple memory copies (from NIC buffer to OS kernel space, to user RAM, and finally to GPU VRAM).</p>
+    </div>
+
+    <figure class="paths wide reveal" aria-labelledby="paths-cap">
+      <div class="path dead-path">
+        <div class="path-head"><span class="tag">Kernel TCP/IP</span><span class="path-stat">3 copies &middot; CPU on every packet</span></div>
+        <ol class="hops">
+          <li>NIC buffer</li>
+          <li class="copy">OS kernel space</li>
+          <li class="copy">User RAM</li>
+          <li class="copy">GPU VRAM</li>
+        </ol>
+        <span class="packet" aria-hidden="true"></span>
+      </div>
+      <div class="path live-path">
+        <div class="path-head"><span class="tag">GPUDirect RDMA</span><span class="path-stat">zero-copy &middot; CPU untouched</span></div>
+        <ol class="hops">
+          <li>Remote NIC</li>
+          <li>PCIe switch</li>
+          <li>GPU VRAM</li>
+        </ol>
+        <span class="packet" aria-hidden="true"></span>
+      </div>
+      <figcaption id="paths-cap"><span class="mono-label">Fig. 4</span> Same packet, same destination. One path stops at every station; the other is an express train.</figcaption>
+    </figure>
+
+    <div class="beat">
+      <p class="beat-label">Why it failed for AI</p>
+      <h3>The CPU as a high-priced bottleneck</h3>
+      <p>At line rates of 400&nbsp;Gbps or 800&nbsp;Gbps, CPU memory buses choke instantly, and CPU cores burn out just parsing packet headers. The CPU becomes a high-priced bottleneck for data it doesn&rsquo;t even need to touch.</p>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label live">The modern replacement</p>
+      <h3>GPUDirect RDMA (GDR)</h3>
+      <p>GPUDirect RDMA completely bypasses the host CPU, operating system, and system RAM. The remote NIC writes data directly across the PCIe switch straight into local GPU VRAM in a true zero-copy architecture.</p>
+    </div>
+  </section>
+
+  <!-- ============ PART 4 ============ -->
+  <section class="part flow" id="part-4">
+    <header class="part-head wide">
+      <span class="part-no" aria-hidden="true">04</span>
+      <div>
+        <p class="mono-label">Part 04 / 04 &middot; The Fabric</p>
+        <h2>Lossless Networking (InfiniBand vs. RoCEv2)</h2>
+      </div>
+    </header>
+
+    <div class="swap wide">
+      <div class="swap-dead"><span class="tag">Deprecated</span><strong>&ldquo;Best-effort&rdquo; Ethernet</strong></div>
+      <span class="swap-arrow" aria-hidden="true"></span>
+      <div class="swap-live"><span class="tag">Successor</span><strong>InfiniBand &amp; RoCEv2</strong></div>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label">What we left behind</p>
+      <h3>Standard &ldquo;best-effort&rdquo; Ethernet</h3>
+      <p>Standard Ethernet deals with network congestion by dropping packets and relying on TCP to retransmit them later.</p>
+    </div>
+
+    <div class="beat">
+      <p class="beat-label">Why it failed for AI</p>
+      <h3>One straggler stalls them all</h3>
+      <p>AI training depends heavily on synchronous parallel algorithms like AllReduce. If 1 out of 10,000 GPUs drops a single packet and hits a 10&nbsp;ms retransmission timeout, the other 9,999 GPUs are forced to pause and idle, waiting for that single straggler.</p>
+    </div>
+
+    <figure class="sim wide reveal" aria-labelledby="sim-cap">
+      <div class="sim-top">
+        <span class="mono-label">Fig. 5 &mdash; AllReduce, live</span>
+        <div class="seg" role="radiogroup" aria-label="Network mode">
+          <button type="button" role="radio" aria-checked="true" data-mode="lossy">Best-effort</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="lossless">Lossless</button>
+        </div>
+      </div>
+      <div class="sim-grid" id="sim-grid" aria-hidden="true"></div>
+      <div class="sim-stats">
+        <div><span class="mono-label dim">Sync steps done</span><strong id="sim-steps">0</strong></div>
+        <div><span class="mono-label dim">Status</span><strong id="sim-status">Running</strong></div>
+        <div><span class="mono-label dim">GPU-ms idle</span><strong id="sim-idle">0</strong></div>
+      </div>
+      <figcaption id="sim-cap">A 200-GPU scale model. In best-effort mode, a single dropped packet freezes every other GPU until the retransmit lands. Flip to lossless and the stalls disappear.</figcaption>
+    </figure>
+
+    <div class="beat">
+      <p class="beat-label live">The modern replacement</p>
+      <h3>InfiniBand &amp; RoCEv2</h3>
+      <p>To prevent the dreaded straggler problem, modern clusters use credit-based flow control (InfiniBand) or Priority Flow Control (RoCEv2) to create a strictly lossless network fabric where packets are never dropped due to buffer congestion.</p>
+    </div>
+
+    <div class="spec wide reveal">
+      <div class="spec-card">
+        <span class="mono-label">InfiniBand</span>
+        <h4>Credit-based flow control</h4>
+        <p>A sender only transmits when the receiver has advertised buffer credits. No room, no send &mdash; so nothing overflows.</p>
+      </div>
+      <div class="spec-card">
+        <span class="mono-label">RoCEv2</span>
+        <h4>Priority Flow Control</h4>
+        <p>RDMA over Ethernet. When a buffer fills, PFC pauses that traffic class upstream instead of dropping packets.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONCLUSION ============ -->
+  <section class="part flow" id="next">
+    <header class="part-head wide">
+      <span class="part-no" aria-hidden="true">05</span>
+      <div>
+        <p class="mono-label">Conclusion</p>
+        <h2>What&rsquo;s Next?</h2>
+      </div>
+    </header>
+
+    <p>Looking back at this graveyard, it&rsquo;s wild to see how much legacy baggage we had to drop to make generative AI a reality.</p>
+
+    <ul class="ledger wide">
+      <li><s>Master-slave VRAM duplication</s><span>killed</span></li>
+      <li><s>The CPU root complex detour</s><span>routed around</span></li>
+      <li><s>The TCP/IP kernel stack</s><span>tossed out</span></li>
+      <li><s>Dropped packets</s><span>outlawed</span></li>
+    </ul>
+
+    <p>The big question now is: <strong>Is Ethernet finally ready to reclaim the data center from InfiniBand?</strong> With the rise of the Ultra Ethernet Consortium, engineers are trying to bring lossless, high-performance scale-out capabilities back to standard Ethernet. As a student watching this unfold, I can&rsquo;t wait to see if Ethernet can pull off a redemption arc&mdash;or if custom fabrics will continue to rule the AI world.</p>
+
+    <aside class="question wide">
+      <span class="mono-label">Open question</span>
+      <p>What are your thoughts on the shift toward custom fabrics? Do you think open standards like <em>Ultra Ethernet</em> will eventually unseat proprietary interconnects like <em>InfiniBand</em> and <em>NVLink</em>?</p>
+      <button class="copy-link" id="copy-link" type="button">Copy link to share</button>
+    </aside>
+  </section>
+
+  <!-- ============ AUTHORS ============ -->
+  <section class="authors" id="authors" aria-labelledby="authors-title">
+    <div class="authors-inner">
+      <span class="mono-label">Written by</span>
+      <h2 id="authors-title">The authors</h2>
+      <ul class="author-list">
+        <li><span class="author-av">PG</span><span class="author-name">Piyush Gupta</span><span class="mono-label dim">Co-author</span></li>
+        <li><span class="author-av">JM</span><span class="author-name">Jeet Mane</span><span class="mono-label dim">Co-author</span></li>
+        <li><span class="author-av">JC</span><span class="author-name">Jai Chavan</span><span class="mono-label dim">Co-author</span></li>
+        <li><span class="author-av">AS</span><span class="author-name">Atharva Sheramkar</span><span class="mono-label dim">Co-author</span></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <span class="brand-name small">Interconnect <em>Graveyard</em></span>
+  <span class="mono-label dim">Issue 01 &middot; October 2026</span>
+  <a class="mono-label" href="#top">Back to top &uarr;</a>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>
